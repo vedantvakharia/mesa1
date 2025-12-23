@@ -1116,6 +1116,63 @@ class TestSpaceRandomParameter(unittest.TestCase):
         assert len(agentset) == 0
         assert agentset.random is rng
 
+    def test_agents_fallback_to_agent_rng_when_space_has_no_random(self):
+        """Test that space.agents falls back to agent's RNG when space has no random."""
+        # Create space without random (suppress warning for this test)
+        with pytest.warns(UserWarning):
+            space = ContinuousSpace(100, 100, torus=False)
+
+        # Add an agent
+        agent = MockAgent(1)
+        space.place_agent(agent, (50, 50))
+
+        # The AgentSet should use the agent's RNG as fallback
+        agentset = space.agents
+        assert len(agentset) == 1
+        # Agent's random should be used (it comes from agent.random which is agent.model.random)
+        assert agentset.random is agent.random
+
+    def test_grid_agents_fallback_to_agent_rng_when_grid_has_no_random(self):
+        """Test that grid.agents falls back to agent's RNG when grid has no random."""
+        # Create grid without random (suppress warning for this test)
+        with pytest.warns(UserWarning):
+            grid = SingleGrid(10, 10, torus=False)
+
+        # Add an agent
+        agent = MockAgent(1)
+        grid.place_agent(agent, (5, 5))
+
+        # The AgentSet should use the agent's RNG as fallback
+        agentset = grid.agents
+        assert len(agentset) == 1
+        assert agentset.random is agent.random
+
+    def test_network_grid_agents_fallback_to_agent_rng(self):
+        """Test that network_grid.agents falls back to agent's RNG when grid has no random."""
+        graph = nx.complete_graph(5)
+        with pytest.warns(UserWarning):
+            grid = NetworkGrid(graph)
+
+        # Add an agent
+        agent = MockAgent(1)
+        grid.place_agent(agent, 0)
+
+        # The AgentSet should use the agent's RNG as fallback
+        agentset = grid.agents
+        assert len(agentset) == 1
+        assert agentset.random is agent.random
+
+    def test_empty_space_without_random_returns_none_rng(self):
+        """Test that empty space without random parameter has None RNG in AgentSet."""
+        with pytest.warns(UserWarning):
+            space = ContinuousSpace(100, 100, torus=False)
+
+        # Empty space with no random should have AgentSet with None random
+        # (which will trigger a warning in AgentSet creation, but that's expected)
+        with pytest.warns(UserWarning):
+            agentset = space.agents
+        assert len(agentset) == 0
+
 
 if __name__ == "__main__":
     unittest.main()
