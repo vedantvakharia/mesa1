@@ -27,7 +27,7 @@ import warnings
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
-from .eventlist import EventList, Priority, SimulationEvent
+from .eventlist import EventList, EventType, Priority, SimulationEvent
 
 if TYPE_CHECKING:
     from mesa import Model
@@ -174,6 +174,7 @@ class Simulator:
         priority: Priority = Priority.DEFAULT,
         function_args: list[Any] | None = None,
         function_kwargs: dict[str, Any] | None = None,
+        event_type: EventType = EventType.DEFAULT,
     ) -> SimulationEvent:
         """Schedule event for the current time instant.
 
@@ -182,6 +183,7 @@ class Simulator:
             priority (Priority): the priority of the event, optional
             function_args (List[Any]): list of arguments for function
             function_kwargs (Dict[str, Any]):  dict of keyword arguments for function
+            event_type (EventType): the type of event
 
         Returns:
             SimulationEvent: the simulation event that is scheduled
@@ -193,6 +195,7 @@ class Simulator:
             priority=priority,
             function_args=function_args,
             function_kwargs=function_kwargs,
+            event_type=event_type,
         )
 
     def schedule_event_absolute(
@@ -202,6 +205,7 @@ class Simulator:
         priority: Priority = Priority.DEFAULT,
         function_args: list[Any] | None = None,
         function_kwargs: dict[str, Any] | None = None,
+        event_type: EventType = EventType.DEFAULT,
     ) -> SimulationEvent:
         """Schedule event for the specified time instant.
 
@@ -211,6 +215,7 @@ class Simulator:
             priority (Priority): the priority of the event, optional
             function_args (List[Any]): list of arguments for function
             function_kwargs (Dict[str, Any]):  dict of keyword arguments for function
+            event_type (EventType): the type of event
 
         Returns:
             SimulationEvent: the simulation event that is scheduled
@@ -225,6 +230,7 @@ class Simulator:
             priority=priority,
             function_args=function_args,
             function_kwargs=function_kwargs,
+            event_type=event_type,
         )
         self._schedule_event(event)
         return event
@@ -236,6 +242,7 @@ class Simulator:
         priority: Priority = Priority.DEFAULT,
         function_args: list[Any] | None = None,
         function_kwargs: dict[str, Any] | None = None,
+        event_type: EventType = EventType.DEFAULT,
     ) -> SimulationEvent:
         """Schedule event for the current time plus the time delta.
 
@@ -245,24 +252,19 @@ class Simulator:
             priority (Priority): the priority of the event, optional
             function_args (List[Any]): list of arguments for function
             function_kwargs (Dict[str, Any]):  dict of keyword arguments for function
+            event_type (EventType): the type of event
 
         Returns:
             SimulationEvent: the simulation event that is scheduled
 
         """
-        if time_delta < 0:
-            raise ValueError(
-                f"Cannot schedule event in the past: time_delta ({time_delta}) "
-                f"would result in event time ({self.model.time + time_delta}) "
-                f"before current time ({self.model.time})"
-            )
-
         event = SimulationEvent(
             self.model.time + time_delta,
             function,
             priority=priority,
             function_args=function_args,
             function_kwargs=function_kwargs,
+            event_type=event_type,
         )
         self._schedule_event(event)
         return event
@@ -308,7 +310,9 @@ class ABMSimulator(Simulator):
 
         """
         super().setup(model)
-        self.schedule_event_next_tick(self.model.step, priority=Priority.HIGH)
+        self.schedule_event_next_tick(
+            self.model.step, priority=Priority.HIGH, event_type=EventType.MODEL_STEP
+        )
 
     def check_time_unit(self, time) -> bool:
         """Check whether the time is of the correct unit.
@@ -333,6 +337,7 @@ class ABMSimulator(Simulator):
         priority: Priority = Priority.DEFAULT,
         function_args: list[Any] | None = None,
         function_kwargs: dict[str, Any] | None = None,
+        event_type: EventType = EventType.DEFAULT,
     ) -> SimulationEvent:
         """Schedule a SimulationEvent for the next tick.
 
@@ -341,6 +346,10 @@ class ABMSimulator(Simulator):
             priority (Priority): the priority of the event
             function_args (List[Any]): List of arguments to pass to the callable
             function_kwargs (Dict[str, Any]): List of keyword arguments to pass to the callable
+            event_type (EventType): the type of event
+
+        Returns:
+            SimulationEvent: the scheduled event
 
         """
         return self.schedule_event_relative(
@@ -349,16 +358,17 @@ class ABMSimulator(Simulator):
             priority=priority,
             function_args=function_args,
             function_kwargs=function_kwargs,
+            event_type=event_type,
         )
 
     def run_until(self, end_time: int) -> None:
-        """Run the simulator up to and included the specified end time.
+        """Run the simulator up to and including the specified end time.
 
         Args:
-            end_time (float| int): The end_time delta. The simulator is until the specified end time
+            end_time (int): The end time. The simulator runs until the specified end time.
 
         Raises:
-            Exception if simulator.setup() has not yet been called
+            RuntimeError: If simulator.setup() has not yet been called
 
         """
         if self.model is None:
@@ -376,10 +386,12 @@ class ABMSimulator(Simulator):
             if event.time <= end_time:
                 self.model.time = float(event.time)
 
-                # Reschedule model.step for next tick if this is a step event
-                if event.fn() == self.model.step:
+                # Reschedule model.step for next tick if this is a MODEL_STEP event
+                if event.event_type == EventType.MODEL_STEP:
                     self.schedule_event_next_tick(
-                        self.model.step, priority=Priority.HIGH
+                        self.model.step,
+                        priority=Priority.HIGH,
+                        event_type=EventType.MODEL_STEP,
                     )
 
                 event.execute()
