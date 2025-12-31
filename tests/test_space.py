@@ -1178,6 +1178,8 @@ class TestSpaceRandomParameter(unittest.TestCase):
         with pytest.warns(UserWarning):
             agentset = space.agents
         assert len(agentset) == 0
+
+
 class TestMultiGridEmptyMask(unittest.TestCase):  # noqa: D101
     def test_empty_mask_update(self):  # noqa: D102
         grid = MultiGrid(10, 10, False)

@@ -97,9 +97,6 @@ before placing the agent again.""",
     return wrapper
 
 
-
-
-
 class _Grid:
     """Base class for a rectangular grid.
 
